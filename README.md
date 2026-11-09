@@ -1,42 +1,80 @@
 # SubFetch 🎬
 
-**SubFetch** is a lightweight, cross-platform Python/Tkinter GUI application designed for quickly searching, downloading, and loading subtitles for local video files using OpenSubtitles APIs.
+**SubFetch** is a lightweight, clean, and cross-platform desktop application written in Python and Tkinter for searching, downloading, and automatically playing subtitles alongside your local video files using OpenSubtitles.
 
 ---
 
-## Features
+## Key Features
 
-- **Drag & Drop Support**: Drag any video file directly into the application window to inspect and start searching immediately.
-- **Hash-Based & Text Search**: Automatically calculates the OpenSubtitles movie hash for exact matching while providing a manual search box for title/query adjustments.
-- **Multi-Language UI & Subtitle Support**:
-  - **Interface languages**: English, Romanian, Italian.
-  - **Subtitle search languages**: Romanian, English, Italian, Hungarian, French, German, Spanish.
-- **Video Player Integration**: Directly launch external media players with the newly downloaded subtitle loaded:
-  - System or Flatpak packages: **mpv**, **VLC**, **Celluloid**, **SMPlayer**, **Totem**, **MPlayer**.
-- **Diacritics Correction**: Built-in character translation option for fixing Romanian legacy/damaged diacritics.
-- **Multi-Source Fetching**: Queries both OpenSubtitles REST API and web search endpoints concurrently.
-- **Persistent Preferences**: Saves your UI language, search language, and diacritic preferences locally across sessions (`~/.config/subfetch.json`).
+- **Drag & Drop Interface**: Easily drop any video file directly into the application window to kick off hash calculation and subtitle search.
+- **Smart Hash & Text Search**: Computes OpenSubtitles exact movie hashes while automatically guessing and extracting clean titles for fallback keyword searches.
+- **Multi-Language Support**:
+  - **Interface Languages**: English, Romanian, Italian.
+  - **Subtitle Search Languages**: English, Romanian, Italian, Hungarian, French, German, Spanish.
+- **Integrated Video Playback**: Automatically downloads and opens the video with your preferred player. Supported players (native & Flatpak):
+  - **mpv**, **VLC**, **Celluloid**, **SMPlayer**, **Totem**, **MPlayer**.
+- **Diacritics Repair**: Features built-in automatic character correction for Romanian legacy diacritics (`º`, `ª`, `þ`, `Þ`, etc.).
+- **Dual OpenSubtitles Querying**: Queries both OpenSubtitles REST API and web search endpoints concurrently for maximum coverage.
+- **Archive Extraction**: Automatically extracts and decompresses `.srt` files wrapped in `.zip` or `.gz` archives.
+- **Persistent Settings**: Saves your UI language, subtitle language preferences, and diacritic choices locally in `~/.config/subfetch.json`.
 
 ---
 
-## Supported Video & Subtitle Formats
+## Supported Formats
 
-- **Video formats**: `.mkv`, `.mp4`, `.avi`, `.mov`, `.webm`, `.m4v`, `.mpg`, `.mpeg`, `.wmv`, `.flv`, `.ts`
-- **Subtitle formats**: `.srt`, `.sub`, `.ass`, `.ssa`, `.vtt` (automatically handles `.gz` and `.zip` archive extraction).
+- **Video Extensions**: `.mkv`, `.mp4`, `.avi`, `.mov`, `.webm`, `.m4v`, `.mpg`, `.mpeg`, `.wmv`, `.flv`, `.ts`
+- **Subtitle Extensions**: `.srt`, `.sub`, `.ass`, `.ssa`, `.vtt`
 
 ---
 
 ## Requirements
 
-- **Python 3.6+**
-- Standard Python libraries (`tkinter`, `urllib`, `gzip`, `zipfile`, `json`, `threading`, `queue`, `struct`).
-- *(Optional)* `tkinterdnd2` or system `tkdnd` for Drag & Drop support.
+- **Python 3.6+** (uses standard libraries: `tkinter`, `urllib`, `gzip`, `zipfile`, `json`, `threading`, `queue`, `struct`).
+- *(Optional)* `tkinterdnd2` or system `tkdnd` for Drag & Drop functionality (falls back gracefully to file selection if unavailable).
 
 ---
 
-## Installation & Usage
+## Quick Start
 
-1. **Clone the repository or download `subfetch.py`**:
-   ```bash
-   git clone [https://github.com/your-username/subfetch.git](https://github.com/your-username/subfetch.git)
-   cd subfetch
+Run the script directly using Python:
+
+```bash
+python3 subfetch.py
+```
+
+You can also pass a video file path directly when launching:
+
+```bash
+python3 subfetch.py /path/to/movie.mkv
+```
+
+---
+
+## Usage Guide
+
+1. **Select a Video**: Drag and drop a movie file onto the drop panel or click it to choose a file manually.
+2. **Review Results**: SubFetch instantly computes the file hash and fetches available subtitles.
+3. **Download or Play**:
+   - Double-click any subtitle result (or press `Enter`) to download and play immediately.
+   - Click **Download and play** to launch your selected media player with the downloaded subtitle attached.
+   - Click **Download only** to save the `.srt` file next to your video file.
+
+---
+
+## Configuration
+
+SubFetch stores configuration settings under `~/.config/subfetch.json` (or `$XDG_CONFIG_HOME/subfetch.json`):
+
+```json
+{
+  "ui_lang": "English",
+  "search_lang": "English",
+  "fix_diacritics": false
+}
+```
+
+---
+
+## 📄 License
+
+This project is licensed under the GNU General Public License v3.0 (GPLv3). Anyone is free to modify and redistribute this software, provided that any derivative works are also open-sourced under the same license terms.
