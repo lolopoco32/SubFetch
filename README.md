@@ -6,7 +6,8 @@
 
 ## Key Features
 
-- **Drag & Drop Interface**: Easily drop any video file directly into the application window to kick off hash calculation and subtitle search.
+- **Batch Processing**: Easily process an entire season, a whole collection, or an entire folder in one go to fetch subtitles for all your video files simultaneously.
+- **Drag & Drop Interface**: Easily drop any video file—or even an entire folder—directly into the application window to kick off hash calculation and subtitle search.
 - **Smart Hash & Text Search**: Computes OpenSubtitles exact movie hashes while automatically guessing and extracting clean titles for fallback keyword searches.
 - **Multi-Language Support**:
   - **Interface Languages**: English, Romanian, Italian.
