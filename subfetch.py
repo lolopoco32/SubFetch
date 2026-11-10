@@ -15,6 +15,7 @@ import tkinter as tk
 import urllib.error
 import urllib.parse as up
 import urllib.request
+import webbrowser
 import zipfile
 from tkinter import filedialog, messagebox, ttk
 
@@ -42,8 +43,8 @@ STRINGS = {
         "title": "SubFetch – căutare subtitrări", "drop": "⤓\n\nTrage aici filmul\nsau dă clic pentru a-l alege",
         "drop_unavailable": "Drag & drop indisponibil –\ndă clic aici pentru a alege filmul",
         "search_lbl": "Caută:", "search_lang_lbl": "Limbă căutare:", "ui_lang_lbl": "Interfață:",
-        "sources_title": "Sursă subtitrări", "btn_search": "Caută", "diacritics": "Corectează diacritice", "col_title": "Titlu", "col_release": "Release / fișier", "col_downloads": "Desc.",
-        "player": "Player video:", "btn_play": "Descarcă și redă", "btn_download": "Doar descarcă",
+        "sources_title": "Sursă subtitrări", "btn_search": "🔍 Caută", "diacritics": "Corectează diacritice", "col_title": "Titlu", "col_release": "Release / fișier", "col_downloads": "Desc.",
+        "player": "Player video:", "btn_play": "▶ Descarcă și redă", "btn_download": "📥 Doar descarcă",
         "calc_hash": "Calculez hash-ul și caut…", "no_video_drop": "Ce ai selectat nu este un fișier video.",
         "file_not_found": "Fișier inexistent: %s",
         "searching": "Se caută pe OpenSubtitles…", "results_count": "%d rezultate", "waiting": " – mai aștept…",
@@ -51,13 +52,14 @@ STRINGS = {
         "error_dl": "Eroare la descărcare: %s", "error_play": "Eroare la pornirea playerului: %s",
         "no_player": "Nu a fost selectat sau găsit niciun player video.",
         "sub_loaded": "Subtitrare încărcată / redare pornită.", "choose_film": "Alege filmul",
+        "imdb_btn": "🎬 Informații IMDB", "imdb_error": "Alege mai întâi un film pentru a căuta pe IMDB."
     },
     "English": {
         "title": "SubFetch – Subtitle Search", "drop": "⤓\n\nDrop movie here\nor click to browse",
         "drop_unavailable": "Drag & drop unavailable –\nclick here to browse movie",
         "search_lbl": "Search:", "search_lang_lbl": "Search lang:", "ui_lang_lbl": "Interface:",
-        "sources_title": "Subtitle source", "btn_search": "Search", "diacritics": "Fix diacritics", "col_title": "Title", "col_release": "Release / file", "col_downloads": "Dl.",
-        "player": "Video player:", "btn_play": "Download and play", "btn_download": "Download only",
+        "sources_title": "Subtitle source", "btn_search": "🔍 Search", "diacritics": "Fix diacritics", "col_title": "Title", "col_release": "Release / file", "col_downloads": "Dl.",
+        "player": "Video player:", "btn_play": "▶ Download and play", "btn_download": "📥 Download only",
         "calc_hash": "Calculating hash and searching…", "no_video_drop": "Selected item is not a video file.",
         "file_not_found": "File not found: %s",
         "searching": "Searching OpenSubtitles…", "results_count": "%d results", "waiting": " – still waiting…",
@@ -65,13 +67,14 @@ STRINGS = {
         "error_dl": "Download error: %s", "error_play": "Player launch error: %s",
         "no_player": "No video player selected or found.",
         "sub_loaded": "Subtitle loaded / playback started.", "choose_film": "Choose movie",
+        "imdb_btn": "🎬 IMDB Info", "imdb_error": "Choose a movie first to search on IMDB."
     },
     "Italiano": {
         "title": "SubFetch – Ricerca Sottotitoli", "drop": "⤓\n\nTrascina qui il film\no clicca per sfogliare",
         "drop_unavailable": "Trascina e rilascia non disponibile –\nclicca qui per scegliere",
         "search_lbl": "Cerca:", "search_lang_lbl": "Lingua cerca:", "ui_lang_lbl": "Interfaccia:",
-        "sources_title": "Fonte sottotitoli", "btn_search": "Cerca", "diacritics": "Correggi diacritici", "col_title": "Titolo", "col_release": "Release / file", "col_downloads": "Scaric.",
-        "player": "Player video:", "btn_play": "Scarica e riproduci", "btn_download": "Scarica solo",
+        "sources_title": "Fonte sottotitoli", "btn_search": "🔍 Cerca", "diacritics": "Correggi diacritici", "col_title": "Titolo", "col_release": "Release / file", "col_downloads": "Scaric.",
+        "player": "Player video:", "btn_play": "▶ Scarica e riproduci", "btn_download": "📥 Scarica solo",
         "calc_hash": "Calcolo hash e ricerca…", "no_video_drop": "Il file selezionato non è un video.",
         "file_not_found": "File non trovato: %s",
         "searching": "Ricerca su OpenSubtitles…", "results_count": "%d risultati", "waiting": " – attendo…",
@@ -79,10 +82,10 @@ STRINGS = {
         "error_dl": "Errore download: %s", "error_play": "Errore avvio player: %s",
         "no_player": "Nessun player video selezionato o trovato.",
         "sub_loaded": "Sottotitolo caricato / riproduzione avviata.", "choose_film": "Scegli film",
+        "imdb_btn": "🎬 Informazioni IMDB", "imdb_error": "Scegli prima un film per cercare su IMDB."
     },
 }
 
-# coloane tabel: (cheie, lățime, se întinde la redimensionare)
 COLS = (("title", 260, True), ("release", 300, True), ("downloads", 60, False))
 
 PLAYERS = {
@@ -126,12 +129,8 @@ def http_json(url, headers=None):
     return json.loads(http_text(url, headers))
 
 
-def strip_tags(html):
-    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html)).strip()
-
-
-def getter(url, **headers):
-    return lambda: http_get(url, headers)
+def getter(url, ua=None):
+    return lambda: http_get(url, {"User-Agent": ua} if ua else None)
 
 
 def item(title, release="", downloads="", fetch=None, exact=False):
@@ -139,8 +138,25 @@ def item(title, release="", downloads="", fetch=None, exact=False):
             "fetch": fetch, "exact": exact}
 
 
+# API-ul vechi OpenSubtitles verifică antetul User-Agent; "TemporaryUserAgent" este cel acceptat pentru teste.
+OS_AGENTS = ("TemporaryUserAgent", "trailers.to-UA")
+
+
+def os_api_get(url):
+    """Interoghează API-ul; la HTTP 401 încearcă următorul User-Agent. Returnează (json, agent_ok)."""
+    last = None
+    for ua in OS_AGENTS:
+        try:
+            return http_json(url, {"User-Agent": ua, "X-User-Agent": ua}), ua
+        except urllib.error.HTTPError as e:
+            last = e
+            if e.code != 401:
+                raise
+    raise last
+
+
 def opensubtitles_api(c):
-    base, hdr = "https://rest.opensubtitles.org/search/", {"X-User-Agent": "TemporaryUserAgent"}
+    base = "https://rest.opensubtitles.org/search/"
     paths = []
     if c["vhash"]:
         paths.append(("moviebytesize-%d/moviehash-%s/sublanguageid-%s" % (c["vsize"], c["vhash"], c["l3"]), True))
@@ -148,7 +164,7 @@ def opensubtitles_api(c):
     out, seen = [], set()
     for path, exact in paths:
         try:
-            data = http_json(base + path, hdr)
+            data, ua = os_api_get(base + path)
         except Exception:
             if not exact:
                 raise
@@ -161,25 +177,49 @@ def opensubtitles_api(c):
             name = it.get("MovieName") or it.get("SubFileName", "")
             out.append(item(("★ " if exact else "") + name,
                             it.get("MovieReleaseName") or it.get("SubFileName", ""),
-                            it.get("SubDownloadsCnt", ""), getter(link), exact))
+                            it.get("SubDownloadsCnt", ""), getter(link, ua), exact))
     return out
 
 
-def opensubtitles_web(c):
-    html = http_text("https://www.opensubtitles.org/en/search/sublanguageid-%s/moviename-%s"
-                     % (c["l3"], up.quote_plus(c["query"].lower())))
-    out = []
-    for sid, row in re.findall(r'<tr[^>]*id="name(\d+)"[^>]*>(.*?)</tr>', html, re.S):
-        a = re.search(r'<a[^>]*class="bnone"[^>]*>(.*?)</a>', row, re.S)
-        txt = strip_tags(row)
-        dl = re.search(r"\b([\d,]+)x\b", txt)
-        out.append(item(strip_tags(a[1]) if a else "?", txt[:140], dl[1] if dl else "",
-                        getter("https://dl.opensubtitles.org/en/download/sub/" + sid,
-                               Referer="https://www.opensubtitles.org/")))
-    return out
+SOURCES = (opensubtitles_api,)
 
 
-SOURCES = (opensubtitles_api, opensubtitles_web)
+def imdb_lookup(q):
+    """Sugestii IMDb pentru un titlu: listă de intrări cu id 'tt...' (conțin id, titlu, poster în 'i')."""
+    q = q.strip().lower()
+    first = next((ch for ch in q if ch.isascii() and ch.isalnum()), "a")
+    data = http_json("https://v2.sg.media-imdb.com/suggestion/%s/%s.json" % (first, up.quote(q)))
+    return [d for d in data.get("d", []) if str(d.get("id", "")).startswith("tt")]
+
+
+def strip_year(q):
+    return re.sub(r"\s+", " ", re.sub(r"[\(\[]?\b(19|20)\d{2}\b[\)\]]?", " ", q)).strip() or q
+
+
+def poster_urls(query):
+    """Generator de URL-uri de poster, în ordinea surselor (IMDb, TVMaze, iTunes). Excepțiile le tratează apelantul."""
+    try:
+        for d in imdb_lookup(query):
+            url = (d.get("i") or {}).get("imageUrl")
+            if url:
+                yield url, d.get("id")
+                break
+    except Exception:
+        pass
+    clean = strip_year(query)
+    try:
+        for r in http_json("https://api.tvmaze.com/search/shows?q=" + up.quote(clean))[:1]:
+            img = (r.get("show") or {}).get("image") or {}
+            if img.get("original") or img.get("medium"):
+                yield img.get("original") or img.get("medium"), None
+    except Exception:
+        pass
+    try:
+        for r in http_json("https://itunes.apple.com/search?media=movie&limit=1&term=" + up.quote(clean)).get("results", []):
+            if r.get("artworkUrl100"):
+                yield r["artworkUrl100"].replace("100x100bb", "600x600bb"), None
+    except Exception:
+        pass
 
 
 # ============================== UTILITARE ================================
@@ -245,8 +285,11 @@ class App(tk.Tk):
         self.texts = {}
         self.uiq = queue.Queue()
         self.players = find_players()
-        self.minsize(1000, 580)
-        self.geometry("1060x600")
+        self.poster_img = None
+        self.poster_gen = 0
+        self.imdb_id = None
+        self.minsize(1000, 750)
+        self.geometry("1060x750")
         try:
             self.icon_img = tk.PhotoImage(file=os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.png"))
             self.iconphoto(True, self.icon_img)
@@ -307,12 +350,14 @@ class App(tk.Tk):
         if self.players:
             self.player_cb.set(next(iter(self.players)))
 
-        self.mk(ttk.Button, right, "btn_download", command=lambda: self.download(False)).pack(fill="x", pady=(0, 4))
-        self.mk(ttk.Button, right, "btn_play", command=lambda: self.download(True)).pack(fill="x", pady=(0, 6))
+        self.dl_btn = self.mk(ttk.Button, right, "btn_download", command=lambda: self.download(False))
+        self.dl_btn.pack(fill="x", pady=(0, 4))
+        self.play_btn = self.mk(ttk.Button, right, "btn_play", command=lambda: self.download(True))
+        self.play_btn.pack(fill="x", pady=(0, 6))
         self.mk(ttk.Checkbutton, right, "diacritics", variable=self.fix_var, command=self.save_cfg).pack(anchor="w", pady=(0, 8))
 
-        # Suprafața mare de Drop pe verticală
-        self.drop_lbl = tk.Label(right, relief="groove", bd=2, cursor="hand2", justify="center")
+        # Suprafața mare de Drop / Poster pe verticală
+        self.drop_lbl = tk.Label(right, relief="groove", bd=2, cursor="hand2", justify="center", wraplength=RIGHT_W - 30)
         self.drop_lbl.pack(fill="both", expand=True, pady=(4, 8))
         self.drop_lbl.bind("<Button-1>", lambda e: self.pick_file())
 
@@ -321,9 +366,14 @@ class App(tk.Tk):
         self.logo.pack(side="bottom", fill="x")
         self.logo.bind("<Configure>", self.draw_logo)
 
-        box = self.mk(ttk.LabelFrame, right, "sources_title", padding=8)
+        box = self.mk(ttk.LabelFrame, right, "sources_title", padding=8, labelanchor="n")
         box.pack(side="bottom", fill="x", pady=(8, 4))
-        ttk.Label(box, text="OpenSubtitles").pack(anchor="w")
+        ttk.Label(box, text="OpenSubtitles", anchor="center", justify="center").pack(fill="x")
+
+        # Buton Informații IMDB fixat deasupra sursei subtitrări
+        self.imdb_btn = self.mk(ttk.Button, right, "imdb_btn", command=self.open_imdb)
+        self.imdb_btn.pack(side="bottom", fill="x", pady=(0, 4))
+        self.imdb_btn.state(["disabled"])  # activ abia după ce este ales un film
 
         # --- stânga ---
         bar = ttk.Frame(left)
@@ -333,6 +383,7 @@ class App(tk.Tk):
         entry = ttk.Entry(bar, textvariable=self.q_var)
         entry.pack(side="left", fill="x", expand=True, padx=4)
         entry.bind("<Return>", lambda e: self.search())
+        entry.bind("<Key>", lambda e: setattr(self, "imdb_id", None) if e.keysym != "Return" else None)
         self.mk(ttk.Label, bar, "search_lang_lbl").pack(side="left", padx=(6, 4))
         lang_cb = ttk.Combobox(bar, textvariable=self.search_lang_var, values=list(SEARCH_LANGS), state="readonly", width=10)
         lang_cb.pack(side="left", padx=4)
@@ -356,6 +407,7 @@ class App(tk.Tk):
 
         self.setup_dnd()
         self.update_texts()
+        self.update_dl_buttons()
 
     def draw_logo(self, _=None):
         w = self.logo.winfo_width()
@@ -363,13 +415,19 @@ class App(tk.Tk):
         for dx, y, color in ((2, 16, "#ffffff"), (4, 14, "#808080"), (3, 15, "#505050")):
             self.logo.create_text(w - dx, y, text=APP, font=("Helvetica", 13, "bold"), fill=color, anchor="e")
 
+    def update_dl_buttons(self):
+        """Butoanele de descărcare sunt active doar dacă există un film încărcat ȘI cel puțin un rezultat în listă."""
+        ready = bool(self.video) and bool(self.tree.get_children())
+        for b in (self.dl_btn, self.play_btn):
+            b.state(["!disabled"] if ready else ["disabled"])
+
     def update_texts(self):
         s = self.s
         self.title(s["title"])
         for key, w in self.texts.items():
             w.config(text=s[key])
         if not self.video:
-            self.drop_lbl.config(text=s["drop"] if self.dnd_ok else s["drop_unavailable"])
+            self.drop_lbl.config(text=s["drop"] if self.dnd_ok else s["drop_unavailable"], image="")
         self.update_headings()
 
     def update_headings(self):
@@ -439,10 +497,72 @@ class App(tk.Tk):
         base_name = os.path.basename(path)
         if len(base_name) > 28:
             base_name = base_name[:25] + "..."
-        self.drop_lbl.config(text="🎬\n\n" + base_name)
+
         self.q_var.set(guess_query(path))
+        
+        self.imdb_btn.state(["!disabled"])
+        self.imdb_id = None
+        self.poster_img = None
+        self.poster_gen += 1
+        self.drop_lbl.config(image="", text="⏳ Se descarcă posterul...")
+        threading.Thread(target=self._fetch_poster_worker, args=(self.poster_gen, self.q_var.get(), base_name),
+                         daemon=True).start()
+
         self.status.set(self.s["calc_hash"])
         threading.Thread(target=self._hash_then_search, daemon=True).start()
+
+    def _fetch_poster_worker(self, gen, query, fallback_name):
+        raw, imdb_id = None, None
+        for url, iid in poster_urls(query):
+            imdb_id = imdb_id or iid
+            try:
+                data = http_get(url)
+                if data:
+                    raw = data
+                    break
+            except Exception:
+                continue
+        self.ui(self._show_poster, gen, raw, imdb_id, fallback_name)
+
+    def _show_poster(self, gen, raw, imdb_id, fallback_name):
+        # rulează în firul principal (Tk nu e thread-safe, inclusiv pentru PhotoImage)
+        if gen != self.poster_gen:
+            return
+        self.imdb_id = imdb_id
+        if raw:
+            try:
+                from PIL import Image, ImageTk
+                img = Image.open(io.BytesIO(raw)).convert("RGB")
+                w = max(self.drop_lbl.winfo_width() - 8, 120)
+                h = max(self.drop_lbl.winfo_height() - 8, 160)
+                img.thumbnail((w, h), Image.Resampling.LANCZOS)
+                self.poster_img = ImageTk.PhotoImage(img)
+                self.drop_lbl.config(text="", image=self.poster_img)
+                return
+            except ImportError:
+                self.status.set("Pentru poster instalează Pillow:  pip install pillow")
+            except Exception:
+                pass
+        self.drop_lbl.config(image="", text="🎬\n\n" + fallback_name)
+
+    def open_imdb(self):
+        if not self.video:
+            return
+        q = self.q_var.get().strip() or guess_query(self.video)
+        known = self.imdb_id
+
+        def work():
+            iid = known
+            if not iid:
+                try:
+                    hits = imdb_lookup(q)
+                    iid = hits[0]["id"] if hits else None
+                except Exception:
+                    iid = None
+            url = ("https://www.imdb.com/title/%s/" % iid) if iid else \
+                  ("https://www.imdb.com/find/?q=" + up.quote_plus(q) + "&s=tt")
+            self.ui(webbrowser.open, url)
+        threading.Thread(target=work, daemon=True).start()
 
     def _hash_then_search(self):
         try:
@@ -457,6 +577,7 @@ class App(tk.Tk):
         if not q or not self.video:
             return
         self.tree.delete(*self.tree.get_children())
+        self.update_dl_buttons()
         self.results, self.errors, self.gen = [], [], self.gen + 1
         l2, l3, lname = SEARCH_LANGS[self.search_lang_var.get()]
         ctx = {"query": q, "l2": l2, "l3": l3, "lname": lname, "vhash": self.vhash, "vsize": self.vsize}
@@ -470,7 +591,7 @@ class App(tk.Tk):
         try:
             res = fn(ctx)
         except urllib.error.HTTPError as e:
-            err = None if e.code == 404 else "HTTP %d" % e.code
+            err = None if e.code == 404 else "OpenSubtitles: HTTP %d" % e.code
         except Exception as e:
             err = str(e)[:80]
         self.ui(self._done_source, gen, res, err)
@@ -486,6 +607,7 @@ class App(tk.Tk):
             self.tree.insert("", "end", iid=iid, values=[r[c[0]] for c in COLS])
             new.append(iid)
         self.resort()
+        self.update_dl_buttons()
         kids = self.tree.get_children()
         pick = next((i for i in new if self.results[int(i)]["exact"]), None) or (kids[0] if kids and not self.tree.selection() else None)
         if pick:
@@ -533,8 +655,10 @@ class App(tk.Tk):
         self.after(100, self.poll)
 
     def download(self, play):
+        if not self.video or not self.tree.get_children():
+            return  # dublu-click / Enter în listă goală: nu e nimic de descărcat
         sel = self.tree.selection()
-        if not sel or not self.video:
+        if not sel:
             messagebox.showinfo(APP, self.s["choose_sub"])
             return
         self.status.set(self.s["downloading"])
