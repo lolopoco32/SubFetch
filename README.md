@@ -17,6 +17,8 @@
 - **Dual OpenSubtitles Querying**: Queries both OpenSubtitles REST API and web search endpoints concurrently for maximum coverage.
 - **Archive Extraction**: Automatically extracts and decompresses `.srt` files wrapped in `.zip` or `.gz` archives.
 - **Persistent Settings**: Saves your UI language, subtitle language preferences, and diacritic choices locally in `~/.config/subfetch.json`.
+- **Movie Poster Artwork**: Automatically fetches and displays high-res movie posters directly in the application interface upon file selection.
+- **IMDb Quick Integration**: Instantly access and view movie details on IMDb with a dedicated info button.
 
 ---
 
