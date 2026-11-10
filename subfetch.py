@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """SubFetch - căutare, descărcare și redare subtitrări."""
 import argparse
+import difflib
 import gzip
 import io
 import json
@@ -52,7 +53,18 @@ STRINGS = {
         "error_dl": "Eroare la descărcare: %s", "error_play": "Eroare la pornirea playerului: %s",
         "no_player": "Nu a fost selectat sau găsit niciun player video.",
         "sub_loaded": "Subtitrare încărcată / redare pornită.", "choose_film": "Alege filmul",
-        "imdb_btn": "🎬 Informații IMDB", "imdb_error": "Alege mai întâi un film pentru a căuta pe IMDB."
+        "imdb_btn": "🎬 Informații IMDB", "imdb_error": "Alege mai întâi un film pentru a căuta pe IMDB.",
+        "choose_folder": "Alege dosarul cu filme",
+        "scanning": "Se caută fișiere video în dosar…", "no_video_found": "Nu am găsit fișiere video în dosarul ales.",
+        "batch_drop": "📁\n\nFișiere multiple, modul grup\n\n(%d fișiere video)",
+        "col_file": "Film", "col_status": "Stare", "batch_pending": "în așteptare…",
+        "batch_progress": "Mod grup: căutare %d/%d – %s",
+        "batch_dl_progress": "Mod grup: descărcare %d/%d – %s",
+        "batch_found_sum": "Subtitrări găsite: %d din %d filme. Apasă „Doar descarcă” pentru a le salva.",
+        "batch_done": "Gata: %d descărcate, %d negăsite, %d erori.",
+        "b_found": "✔ Găsită: %s · %s · %s", "b_missing": "✖ Nicio subtitrare găsită (%s)",
+        "b_error": "⚠ Eroare: %s", "b_saved": "✔ Descărcată: %s", "b_dl_error": "⚠ Eroare la descărcare: %s",
+        "by_hash": "potrivire exactă (hash)", "by_name": "căutare după nume"
     },
     "English": {
         "title": "SubFetch – Subtitle Search", "drop": "⤓\n\nDrop movie here\nor click to browse",
@@ -67,7 +79,18 @@ STRINGS = {
         "error_dl": "Download error: %s", "error_play": "Player launch error: %s",
         "no_player": "No video player selected or found.",
         "sub_loaded": "Subtitle loaded / playback started.", "choose_film": "Choose movie",
-        "imdb_btn": "🎬 IMDB Info", "imdb_error": "Choose a movie first to search on IMDB."
+        "imdb_btn": "🎬 IMDB Info", "imdb_error": "Choose a movie first to search on IMDB.",
+        "choose_folder": "Choose the movies folder",
+        "scanning": "Scanning folder for video files…", "no_video_found": "No video files found in the selected folder.",
+        "batch_drop": "📁\n\nMultiple files, Batch mode\n\n(%d video files)",
+        "col_file": "Movie", "col_status": "Status", "batch_pending": "pending…",
+        "batch_progress": "Batch mode: searching %d/%d – %s",
+        "batch_dl_progress": "Batch mode: downloading %d/%d – %s",
+        "batch_found_sum": "Subtitles found: %d of %d movies. Press “Download only” to save them.",
+        "batch_done": "Done: %d downloaded, %d not found, %d errors.",
+        "b_found": "✔ Found: %s · %s · %s", "b_missing": "✖ No subtitle found (%s)",
+        "b_error": "⚠ Error: %s", "b_saved": "✔ Downloaded: %s", "b_dl_error": "⚠ Download error: %s",
+        "by_hash": "exact match (hash)", "by_name": "matched by name"
     },
     "Italiano": {
         "title": "SubFetch – Ricerca Sottotitoli", "drop": "⤓\n\nTrascina qui il film\no clicca per sfogliare",
@@ -82,7 +105,18 @@ STRINGS = {
         "error_dl": "Errore download: %s", "error_play": "Errore avvio player: %s",
         "no_player": "Nessun player video selezionato o trovato.",
         "sub_loaded": "Sottotitolo caricato / riproduzione avviata.", "choose_film": "Scegli film",
-        "imdb_btn": "🎬 Informazioni IMDB", "imdb_error": "Scegli prima un film per cercare su IMDB."
+        "imdb_btn": "🎬 Informazioni IMDB", "imdb_error": "Scegli prima un film per cercare su IMDB.",
+        "choose_folder": "Scegli la cartella dei film",
+        "scanning": "Ricerca dei file video nella cartella…", "no_video_found": "Nessun file video trovato nella cartella selezionata.",
+        "batch_drop": "📁\n\nFile multipli, modalità batch\n\n(%d file video)",
+        "col_file": "Film", "col_status": "Stato", "batch_pending": "in attesa…",
+        "batch_progress": "Modalità batch: ricerca %d/%d – %s",
+        "batch_dl_progress": "Modalità batch: download %d/%d – %s",
+        "batch_found_sum": "Sottotitoli trovati: %d su %d film. Premi «Scarica solo» per salvarli.",
+        "batch_done": "Fine: %d scaricati, %d non trovati, %d errori.",
+        "b_found": "✔ Trovato: %s · %s · %s", "b_missing": "✖ Nessun sottotitolo trovato (%s)",
+        "b_error": "⚠ Errore: %s", "b_saved": "✔ Scaricato: %s", "b_dl_error": "⚠ Errore download: %s",
+        "by_hash": "corrispondenza esatta (hash)", "by_name": "ricerca per nome"
     },
 }
 
@@ -256,6 +290,27 @@ def guess_query(path):
     return re.split(r"\b(720p|1080p|2160p|WEB|BluRay|BRRip|HDRip|x264|x265|HDTV)\b", s, flags=re.I)[0].strip()
 
 
+def scan_videos(folder):
+    """Toate fișierele video din dosar și din subdosare (ordonate, determinist)."""
+    out = []
+    for root, dirs, files in os.walk(folder):
+        dirs.sort(key=str.lower)
+        for f in sorted(files, key=str.lower):
+            if f.lower().endswith(VIDEO_EXT):
+                out.append(os.path.join(root, f))
+    return out
+
+
+def pick_best(results, path):
+    """Alege subtitrarea cea mai potrivită: întâi potrivire exactă prin hash, apoi similaritatea numelui cu fișierul."""
+    base = re.sub(r"[._]+", " ", os.path.splitext(os.path.basename(path))[0]).lower()
+
+    def key(r):
+        rel = re.sub(r"[._]+", " ", r["release"] or r["title"]).lower()
+        return (r["exact"], difflib.SequenceMatcher(None, base, rel).ratio(), int(re.sub(r"\D", "", r["downloads"]) or 0))
+    return max(results, key=key)
+
+
 def decode_sub(raw):
     if raw[:2] == b"\x1f\x8b":
         raw = gzip.decompress(raw)
@@ -278,6 +333,7 @@ class App(tk.Tk):
         super().__init__()
         self.cfg = load_config()
         self.video, self.results, self.errors = "", [], []
+        self.batch, self.batch_base, self.items, self.phase, self.batch_lang = [], "", [], "", ""
         self.vhash, self.vsize = None, 0
         self.gen = self.pending = 0
         self.sort = (None, False)
@@ -306,7 +362,10 @@ class App(tk.Tk):
         self.build_ui()
         self.after(100, self.poll)
         if video:
-            self.set_video(video)
+            if os.path.isdir(video):
+                self.add_paths([video])
+            else:
+                self.set_video(video)
 
     @property
     def s(self):
@@ -380,7 +439,7 @@ class App(tk.Tk):
         bar.pack(fill="x", pady=(0, 6))
         self.mk(ttk.Label, bar, "search_lbl").pack(side="left", padx=(0, 4))
         self.q_var = tk.StringVar()
-        entry = ttk.Entry(bar, textvariable=self.q_var)
+        self.entry = entry = ttk.Entry(bar, textvariable=self.q_var)
         entry.pack(side="left", fill="x", expand=True, padx=4)
         entry.bind("<Return>", lambda e: self.search())
         entry.bind("<Key>", lambda e: setattr(self, "imdb_id", None) if e.keysym != "Return" else None)
@@ -390,7 +449,7 @@ class App(tk.Tk):
         lang_cb.bind("<<ComboboxSelected>>", lambda e: (self.save_cfg(), self.search()))
         self.mk(ttk.Button, bar, "btn_search", command=self.search).pack(side="left", padx=(4, 0))
 
-        holder = ttk.Frame(left)
+        self.holder = holder = ttk.Frame(left)
         holder.pack(fill="both", expand=True, pady=(0, 4))
         self.tree = ttk.Treeview(holder, columns=[c[0] for c in COLS], show="headings", selectmode="browse")
         for col, width, stretch in COLS:
@@ -403,7 +462,20 @@ class App(tk.Tk):
         self.tree.bind("<Return>", lambda e: self.download(True))
 
         self.status = tk.StringVar()
-        ttk.Label(left, textvariable=self.status, anchor="w", padding=(0, 4, 0, 0)).pack(fill="x")
+        self.status_lbl = ttk.Label(left, textvariable=self.status, anchor="w", padding=(0, 4, 0, 0))
+        self.status_lbl.pack(fill="x")
+
+        # Tabel informativ pentru modul grup (în locul listei de rezultate; fără selecție)
+        self.info_holder = ttk.Frame(left)
+        self.info_tree = ttk.Treeview(self.info_holder, columns=("file", "status"), show="headings", selectmode="none")
+        self.info_tree.column("file", width=300, minwidth=80, stretch=True, anchor="w")
+        self.info_tree.column("status", width=420, minwidth=80, stretch=True, anchor="w")
+        info_scroll = ttk.Scrollbar(self.info_holder, orient="vertical", command=self.info_tree.yview)
+        self.info_tree.configure(yscrollcommand=info_scroll.set)
+        self.info_tree.pack(side="left", fill="both", expand=True)
+        info_scroll.pack(side="right", fill="y")
+        for tag, color in (("ok", "#1a7f37"), ("miss", "#b35900"), ("err", "#c62828"), ("dim", "#707070")):
+            self.info_tree.tag_configure(tag, foreground=color)
 
         self.setup_dnd()
         self.update_texts()
@@ -416,7 +488,13 @@ class App(tk.Tk):
             self.logo.create_text(w - dx, y, text=APP, font=("Helvetica", 13, "bold"), fill=color, anchor="e")
 
     def update_dl_buttons(self):
-        """Butoanele de descărcare sunt active doar dacă există un film încărcat ȘI cel puțin un rezultat în listă."""
+        """Butoanele de descărcare sunt active doar dacă există un film încărcat ȘI cel puțin un rezultat în listă.
+        În modul grup doar „Doar descarcă” poate fi activ: după căutare și dacă s-a găsit cel puțin o subtitrare."""
+        if self.batch:
+            ready = self.phase == "ready" and any(i["best"] for i in self.items)
+            self.dl_btn.state(["!disabled"] if ready else ["disabled"])
+            self.play_btn.state(["disabled"])
+            return
         ready = bool(self.video) and bool(self.tree.get_children())
         for b in (self.dl_btn, self.play_btn):
             b.state(["!disabled"] if ready else ["disabled"])
@@ -426,11 +504,16 @@ class App(tk.Tk):
         self.title(s["title"])
         for key, w in self.texts.items():
             w.config(text=s[key])
-        if not self.video:
+        if self.batch:
+            self.drop_lbl.config(text=s["batch_drop"] % len(self.batch), image="")
+            self.refresh_info()
+        elif not self.video:
             self.drop_lbl.config(text=s["drop"] if self.dnd_ok else s["drop_unavailable"], image="")
         self.update_headings()
 
     def update_headings(self):
+        for col in ("file", "status"):
+            self.info_tree.heading(col, text=self.s["col_" + col])
         col_sorted, desc = self.sort
         for col, _, _ in COLS:
             arrow = (" ▼" if desc else " ▲") if col == col_sorted else ""
@@ -442,7 +525,7 @@ class App(tk.Tk):
         self.fix_var.set(lang == "Română")
         self.update_texts()
         self.save_cfg()
-        if self.video:
+        if self.video or self.batch:
             self.search()
 
     def save_cfg(self):
@@ -474,9 +557,8 @@ class App(tk.Tk):
     def on_drop(self, *args):
         try:
             paths = [p.strip().strip("'\"") for p in self.tk.splitlist(args[0])] if args else []
-            vids = [p for p in paths if os.path.isfile(p) and p.lower().endswith(VIDEO_EXT)]
-            if vids:
-                self.set_video(vids[0])
+            if paths:
+                self.add_paths(paths)
             else:
                 self.status.set(self.s["no_video_drop"])
         except Exception as e:
@@ -484,15 +566,215 @@ class App(tk.Tk):
         return "copy"
 
     def pick_file(self):
-        p = filedialog.askopenfilename(title=self.s["choose_film"])
-        if p:
-            self.set_video(p)
+        paths = self.tk.splitlist(filedialog.askopenfilenames(title=self.s["choose_film"]))
+        if not paths:
+            # niciun fișier ales -> se poate alege un dosar întreg (se iau și subdosarele)
+            d = filedialog.askdirectory(title=self.s["choose_folder"])
+            if d:
+                self.add_paths([d])
+        elif len(paths) == 1:
+            self.set_video(paths[0])
+        else:
+            self.add_paths(list(paths))
+
+    # ---- scanare dosare / mod grup (batch) ----
+    def add_paths(self, paths):
+        """Primește fișiere și/sau dosare (drag & drop, dialog); scanează în fundal, recursiv."""
+        self.status.set(self.s["scanning"])
+        had_dir = any(os.path.isdir(p) for p in paths)
+        threading.Thread(target=self._scan_worker, args=(paths, had_dir), daemon=True).start()
+
+    def _scan_worker(self, paths, had_dir):
+        vids, seen = [], set()
+        for p in paths:
+            if os.path.isdir(p):
+                found = scan_videos(p)
+            elif os.path.isfile(p) and p.lower().endswith(VIDEO_EXT):
+                found = [p]
+            else:
+                found = []
+            for v in found:
+                k = os.path.normcase(os.path.abspath(v))
+                if k not in seen:
+                    seen.add(k)
+                    vids.append(v)
+        self.ui(self._scanned, vids, had_dir)
+
+    def _scanned(self, vids, had_dir):
+        if not vids:
+            self.status.set(self.s["no_video_found"] if had_dir else self.s["no_video_drop"])
+        elif len(vids) == 1:
+            self.set_video(vids[0])
+        else:
+            self.start_batch(vids)
+
+    def start_batch(self, vids):
+        self.video, self.batch = "", vids
+        self.vhash, self.vsize = None, 0
+        self.gen += 1
+        self.poster_gen += 1  # oprește eventualul poster în curs de descărcare
+        self.imdb_id, self.poster_img = None, None
+        self.tree.delete(*self.tree.get_children())
+        self.results = []
+        try:
+            self.batch_base = os.path.commonpath([os.path.dirname(v) for v in vids])
+        except ValueError:
+            self.batch_base = ""
+        self.items = [{"path": v, "name": self.rel_name(v)} for v in vids]
+        self.q_var.set("")
+        self.entry.state(["disabled"])
+        self.imdb_btn.state(["disabled"])
+        self.drop_lbl.config(image="", text=self.s["batch_drop"] % len(vids))
+        self.show_info(True)
+        self.run_batch()
+
+    def exit_batch(self):
+        if not self.batch:
+            return
+        self.batch, self.items, self.phase = [], [], ""
+        self.gen += 1  # oprește firele de lucru ale modului grup
+        self.show_info(False)
+        self.entry.state(["!disabled"])
+
+    def show_info(self, on):
+        old, new = (self.holder, self.info_holder) if on else (self.info_holder, self.holder)
+        old.pack_forget()
+        new.pack(fill="both", expand=True, pady=(0, 4), before=self.status_lbl)
+
+    def rel_name(self, path):
+        return os.path.relpath(path, self.batch_base) if self.batch_base else path
+
+    # tabelul informativ: fiecare rând păstrează un "builder" ca textul să poată fi re-afișat la schimbarea limbii
+    def set_info(self, i, tag, builder):
+        it = self.items[i]
+        it["tag"], it["msg"] = tag, builder
+        self.info_tree.item(str(i), values=[it["name"], builder(self.s)], tags=(tag,))
+        self.info_tree.see(str(i))
+
+    def refresh_info(self):
+        for i, it in enumerate(self.items):
+            self.info_tree.item(str(i), values=[it["name"], it["msg"](self.s)], tags=(it["tag"],))
+
+    def _batch_set(self, gen, i, tag, builder):
+        if gen == self.gen:
+            self.set_info(i, tag, builder)
+
+    def _batch_progress(self, gen, key, i, total, name):
+        if gen == self.gen:
+            self.status.set(self.s[key] % (i, total, name))
+
+    def run_batch(self):
+        """Faza 1: caută automat subtitrările pentru toate filmele (fără să descarce nimic)."""
+        self.gen += 1
+        self.phase = "search"
+        self.batch_lang = self.search_lang_var.get()
+        self.info_tree.delete(*self.info_tree.get_children())
+        for i, it in enumerate(self.items):
+            it["best"] = None
+            it["tag"], it["msg"] = "dim", (lambda s: s["batch_pending"])
+            self.info_tree.insert("", "end", iid=str(i))
+        self.refresh_info()
+        self.update_dl_buttons()
+        self.status.set(self.s["searching"])
+        todo = [(i, it["path"], it["name"]) for i, it in enumerate(self.items)]
+        threading.Thread(target=self._batch_search_worker, args=(self.gen, todo, self.batch_lang), daemon=True).start()
+
+    def _batch_search_worker(self, gen, todo, lang):
+        l2, l3, lname = SEARCH_LANGS[lang]
+        total = len(todo)
+        for n, (i, path, name) in enumerate(todo, 1):
+            if gen != self.gen:
+                return
+            self.ui(self._batch_progress, gen, "batch_progress", n, total, name)
+            try:
+                vhash, vsize = opensubtitles_hash(path)
+            except Exception:
+                vhash, vsize = None, 0
+            ctx = {"query": guess_query(path) or os.path.splitext(os.path.basename(path))[0],
+                   "l2": l2, "l3": l3, "lname": lname, "vhash": vhash, "vsize": vsize}
+            try:
+                try:
+                    res = opensubtitles_api(ctx)
+                except urllib.error.HTTPError as e:
+                    if e.code != 404:
+                        raise
+                    res = []
+            except Exception as e:
+                msg = "HTTP %d" % e.code if isinstance(e, urllib.error.HTTPError) else str(e)[:80]
+                self.ui(self._batch_set, gen, i, "err", lambda s, m=msg: s["b_error"] % m)
+                continue
+            if not res:
+                self.ui(self._batch_set, gen, i, "miss", lambda s, lg=lang: s["b_missing"] % lg)
+                continue
+            self.ui(self._batch_found, gen, i, pick_best(res, path), len(res))
+        self.ui(self._batch_search_done, gen)
+
+    def _batch_found(self, gen, i, best, count):
+        if gen != self.gen:
+            return
+        self.items[i]["best"] = best
+        how = "by_hash" if best["exact"] else "by_name"
+        rel = best["release"] or best["title"]
+        self.set_info(i, "ok", lambda s, r=rel, h=how, c=count: s["b_found"] % (r, s[h], s["results_count"] % c))
+
+    def _batch_search_done(self, gen):
+        if gen != self.gen:
+            return
+        self.phase = "ready"
+        found = sum(1 for it in self.items if it["best"])
+        self.status.set(self.s["batch_found_sum"] % (found, len(self.items)))
+        self.update_dl_buttons()
+
+    def start_batch_download(self):
+        """Faza 2 (la apăsarea „Doar descarcă”): salvează subtitrările găsite, fiecare lângă filmul ei."""
+        if self.phase != "ready":
+            return
+        todo = [(i, it["path"], it["name"], it["best"]) for i, it in enumerate(self.items) if it["best"]]
+        if not todo:
+            return
+        self.phase = "download"
+        self.update_dl_buttons()
+        l2 = SEARCH_LANGS[self.batch_lang][0]
+        threading.Thread(target=self._batch_download_worker, args=(self.gen, todo, l2, self.fix_var.get()),
+                         daemon=True).start()
+
+    def _batch_download_worker(self, gen, todo, l2, fix):
+        total, ok, errs = len(todo), 0, 0
+        for n, (i, path, name, best) in enumerate(todo, 1):
+            if gen != self.gen:
+                return
+            self.ui(self._batch_progress, gen, "batch_dl_progress", n, total, name)
+            try:
+                text = decode_sub(best["fetch"]())
+                if fix:
+                    text = text.translate(FIX_RO)
+                dest = "%s.%s.srt" % (os.path.splitext(path)[0], l2)  # lângă film, în dosarul lui
+                with open(dest, "w", encoding="utf-8", newline="") as f:
+                    f.write(text)
+            except Exception as e:
+                errs += 1
+                msg = "HTTP %d" % e.code if isinstance(e, urllib.error.HTTPError) else str(e)[:80]
+                self.ui(self._batch_set, gen, i, "err", lambda s, m=msg: s["b_dl_error"] % m)
+                continue
+            ok += 1
+            self.ui(self._batch_set, gen, i, "ok", lambda s, d=os.path.basename(dest): s["b_saved"] % d)
+        self.ui(self._batch_download_done, gen, ok, errs)
+
+    def _batch_download_done(self, gen, ok, errs):
+        if gen != self.gen:
+            return
+        self.phase = "ready"
+        missing = sum(1 for it in self.items if not it["best"] and it["tag"] == "miss")
+        errors = errs + sum(1 for it in self.items if not it["best"] and it["tag"] == "err")
+        self.status.set(self.s["batch_done"] % (ok, missing, errors))
+        self.update_dl_buttons()
 
     def set_video(self, path):
         path = path.strip().strip("'\"")
         if not os.path.isfile(path):
             self.status.set(self.s["file_not_found"] % path)
             return
+        self.exit_batch()
         self.video = path
         base_name = os.path.basename(path)
         if len(base_name) > 28:
@@ -573,6 +855,9 @@ class App(tk.Tk):
 
     # ---- căutare ----
     def search(self):
+        if self.batch:
+            self.run_batch()
+            return
         q = self.q_var.get().strip()
         if not q or not self.video:
             return
@@ -655,6 +940,10 @@ class App(tk.Tk):
         self.after(100, self.poll)
 
     def download(self, play):
+        if self.batch:
+            if not play:
+                self.start_batch_download()
+            return
         if not self.video or not self.tree.get_children():
             return  # dublu-click / Enter în listă goală: nu e nimic de descărcat
         sel = self.tree.selection()
