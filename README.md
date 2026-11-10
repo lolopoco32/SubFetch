@@ -31,7 +31,7 @@
 
 ## Requirements
 
-- **Python 3.6+** (uses standard libraries: `tkinter`, `urllib`, `gzip`, `zipfile`, `json`, `threading`, `queue`, `struct`).
+- **Python 3.6+** (uses standard libraries: `tkinter`, `urllib`, `gzip`, `zipfile`, `json`, `threading`, `queue`, `struct`, `pillow`).
 - *(Optional)* `tkinterdnd2` or system `tkdnd` for Drag & Drop functionality (falls back gracefully to file selection if unavailable).
 
 ---
